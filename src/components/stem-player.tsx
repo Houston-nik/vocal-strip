@@ -1,10 +1,11 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
+import { Download, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { saveAsFile } from "@/lib/download";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -20,14 +21,24 @@ type StemPlayerProps = {
   label: string;
   hint: string;
   src: string;
+  downloadName: string;
   playing: boolean;
   onToggle: () => void;
 };
 
-export function StemPlayer({ label, hint, src, playing, onToggle }: StemPlayerProps) {
+export function StemPlayer({
+  label,
+  hint,
+  src,
+  downloadName,
+  playing,
+  onToggle,
+}: StemPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const node = audioRef.current;
@@ -40,6 +51,18 @@ export function StemPlayer({ label, hint, src, playing, onToggle }: StemPlayerPr
       node.pause();
     }
   }, [playing, src]);
+
+  async function onDownload() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveAsFile(src, downloadName);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Не скачалось.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
@@ -92,6 +115,18 @@ export function StemPlayer({ label, hint, src, playing, onToggle }: StemPlayerPr
               <span key={index} style={{ animationDelay: `${index * 0.05}s` }} />
             ))}
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-3"
+            disabled={saving}
+            onClick={() => void onDownload()}
+          >
+            <Download data-icon="inline-start" />
+            {saving ? "Сохраняю…" : `Скачать ${label.toLowerCase()}`}
+          </Button>
+          {saveError ? <p className="mt-2 text-xs text-destructive">{saveError}</p> : null}
         </div>
       </div>
     </div>

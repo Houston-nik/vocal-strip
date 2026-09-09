@@ -104,7 +104,28 @@ def create_job(filename: str, data: bytes, mode_id: str) -> Job:
 
 def get_job(job_id: str) -> Job | None:
     with _lock:
-        return _jobs.get(job_id)
+        existing = _jobs.get(job_id)
+        if existing is not None:
+            return existing
+    restored = _restore_job(job_id)
+    if restored is None:
+        return None
+    with _lock:
+        _jobs.setdefault(job_id, restored)
+        return _jobs[job_id]
+
+
+def _restore_job(job_id: str) -> Job | None:
+    folder = DATA_DIR / job_id
+    originals = list(folder.glob("original.*"))
+    if not originals:
+        return None
+    job = Job(id=job_id, filename=originals[0].name, mode="classic")
+    if (folder / "instrumental.mp3").exists() or (folder / "instrumental.wav").exists():
+        job.state = JobState.done
+        job.progress = 100.0
+        job.stage = "Готово — слушай минусовку"
+    return job
 
 
 def file_for(job: Job, kind: str) -> Path | None:

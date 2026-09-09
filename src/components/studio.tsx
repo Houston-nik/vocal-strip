@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { engineUrl, fetchHealth, pollJob, startJob } from "@/lib/api";
+import { downloadName, saveAsFile } from "@/lib/download";
 import {
   enginePulseCopy,
   isModeId,
@@ -91,6 +92,7 @@ export function Studio() {
   const [dragOver, setDragOver] = useState(false);
   const [playing, setPlaying] = useState<"original" | "instrumental" | "vocals" | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
+  const [savingMinus, setSavingMinus] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,19 +388,30 @@ export function Studio() {
             <div>
               <h2 className="font-heading text-2xl tracking-tight">Слушай, что получилось</h2>
               <p className="text-sm text-muted-foreground">
-                Слева направо: оригинал, минусовка, снятый голос. Если в минусовке ещё слышен
-                солист — попробуй другой режим.
+                У каждого куска своя кнопка «Скачать». Минусовка сохраняется файлом на ноут, а не
+                открывается как песня в браузере.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button render={<a href={engineUrl(files.instrumentalMp3)} download />}>
-                <Download data-icon="inline-start" />
-                Минусовка MP3
-              </Button>
-              <Button variant="outline" render={<a href={engineUrl(files.instrumentalWav)} download />}>
-                WAV без сжатия
-              </Button>
-            </div>
+            <Button
+              type="button"
+              size="lg"
+              disabled={savingMinus}
+              onClick={() => {
+                setSavingMinus(true);
+                setLocalError(null);
+                void saveAsFile(
+                  engineUrl(files.instrumentalMp3),
+                  downloadName(job.filename, "minusovka"),
+                )
+                  .catch((error: unknown) => {
+                    setLocalError(error instanceof Error ? error.message : "Минусовка не скачалась.");
+                  })
+                  .finally(() => setSavingMinus(false));
+              }}
+            >
+              <Download data-icon="inline-start" />
+              {savingMinus ? "Сохраняю минусовку…" : "Скачать минусовку"}
+            </Button>
           </div>
           {warning ? (
             <p className="rounded-xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
@@ -410,6 +423,7 @@ export function Studio() {
               label="Оригинал"
               hint="Как было"
               src={engineUrl(files.original)}
+              downloadName={downloadName(job.filename, "original")}
               playing={playing === "original"}
               onToggle={() => setPlaying((current) => (current === "original" ? null : "original"))}
             />
@@ -417,6 +431,7 @@ export function Studio() {
               label="Минусовка"
               hint="Музыка без солиста"
               src={engineUrl(files.instrumentalMp3)}
+              downloadName={downloadName(job.filename, "minusovka")}
               playing={playing === "instrumental"}
               onToggle={() =>
                 setPlaying((current) => (current === "instrumental" ? null : "instrumental"))
@@ -426,17 +441,10 @@ export function Studio() {
               label="Снятый голос"
               hint="Чтобы проверить, что именно убрали"
               src={engineUrl(files.vocalsMp3)}
+              downloadName={downloadName(job.filename, "vocals")}
               playing={playing === "vocals"}
               onToggle={() => setPlaying((current) => (current === "vocals" ? null : "vocals"))}
             />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" render={<a href={engineUrl(files.vocalsMp3)} download />}>
-              Скачать голос MP3
-            </Button>
-            <Button variant="ghost" render={<a href={engineUrl(files.vocalsWav)} download />}>
-              Голос WAV
-            </Button>
           </div>
         </section>
       ) : null}

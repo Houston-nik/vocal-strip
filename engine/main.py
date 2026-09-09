@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import Thread
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -84,7 +84,7 @@ def job_status(job_id: str):
 
 
 @app.get("/jobs/{job_id}/{kind}")
-def job_file(job_id: str, kind: str):
+def job_file(job_id: str, kind: str, download: bool = Query(default=False)):
     job = get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Файл не найден.")
@@ -92,8 +92,13 @@ def job_file(job_id: str, kind: str):
     if path is None:
         raise HTTPException(status_code=404, detail="Этот файл ещё не готов.")
     download_name = _download_name(job.filename, kind)
-    media = _media_type(path)
-    return FileResponse(path, media_type=media, filename=download_name)
+    media = "application/octet-stream" if download else _media_type(path)
+    return FileResponse(
+        path,
+        media_type=media,
+        filename=download_name,
+        content_disposition_type="attachment" if download else "inline",
+    )
 
 
 def _download_name(original: str, kind: str) -> str:
