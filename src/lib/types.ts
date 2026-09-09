@@ -1,5 +1,6 @@
 export type ModeId = "classic" | "lead" | "draft";
 export type JobState = "queued" | "running" | "done" | "error";
+export type EnginePulse = "connecting" | "up" | "down";
 
 export type ModeInfo = {
   id: ModeId;
@@ -61,6 +62,21 @@ export function modeCopy(mode: ModeId): { title: string; hint: string } {
     default: {
       const neverMode: never = mode;
       return neverMode;
+    }
+  }
+}
+
+export function enginePulseCopy(pulse: EnginePulse): { label: string; dotClass: string } {
+  switch (pulse) {
+    case "connecting":
+      return { label: "Подключаюсь…", dotClass: "bg-amber-400" };
+    case "up":
+      return { label: "Движок слушает", dotClass: "bg-emerald-400" };
+    case "down":
+      return { label: "Движок спит", dotClass: "bg-red-400" };
+    default: {
+      const neverPulse: never = pulse;
+      return neverPulse;
     }
   }
 }

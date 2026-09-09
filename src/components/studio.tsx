@@ -19,7 +19,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { engineUrl, fetchHealth, pollJob, startJob } from "@/lib/api";
-import { isModeId, modeCopy, type Health, type Job, type ModeId } from "@/lib/types";
+import {
+  enginePulseCopy,
+  isModeId,
+  modeCopy,
+  type EnginePulse,
+  type Health,
+  type Job,
+  type ModeId,
+} from "@/lib/types";
 
 const ACCEPT = ".mp3,.wav,.flac,.m4a,.ogg,.aac,.aiff,.aif";
 
@@ -73,6 +81,7 @@ function extractError(error: unknown): string {
 export function Studio() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [enginePulse, setEnginePulse] = useState<EnginePulse>("connecting");
   const [engineError, setEngineError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<ModeId>("classic");
@@ -84,6 +93,7 @@ export function Studio() {
 
   useEffect(() => {
     let cancelled = false;
+    let timer = 0;
     const loadHealth = async () => {
       try {
         const next = await fetchHealth();
@@ -91,20 +101,26 @@ export function Studio() {
           return;
         }
         setHealth(next);
+        setEnginePulse("up");
         setEngineError(null);
+        timer = window.setTimeout(() => {
+          void loadHealth();
+        }, 8000);
       } catch (error) {
-        if (!cancelled) {
-          setEngineError(extractError(error));
+        if (cancelled) {
+          return;
         }
+        setEnginePulse("down");
+        setEngineError(extractError(error));
+        timer = window.setTimeout(() => {
+          void loadHealth();
+        }, 2000);
       }
     };
     void loadHealth();
-    const timer = window.setInterval(() => {
-      void loadHealth();
-    }, 8000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -158,8 +174,9 @@ export function Studio() {
   );
 
   const selectedModeLocked = Boolean(job && (job.state === "queued" || job.state === "running"));
-  const canRun = Boolean(file) && !busy && !selectedModeLocked && !engineError;
+  const canRun = Boolean(file) && !busy && !selectedModeLocked && enginePulse !== "down";
   const activeMode: ModeId = health && !health.aiReady ? "draft" : mode;
+  const pulse = enginePulseCopy(enginePulse);
 
   async function onCreate() {
     if (!file) {
@@ -215,12 +232,12 @@ export function Studio() {
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className={`size-2.5 rounded-full ${health?.ok ? "bg-emerald-400" : "bg-red-400"}`} />
-          {health?.ok ? "Движок слушает" : "Движок спит"}
+          <span className={`size-2.5 rounded-full ${pulse.dotClass}`} />
+          {pulse.label}
         </div>
       </header>
 
-      {engineError ? (
+      {enginePulse === "down" && engineError ? (
         <Card className="border-destructive/40 bg-destructive/10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

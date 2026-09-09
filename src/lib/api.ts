@@ -29,7 +29,11 @@ export async function fetchHealth(): Promise<Health> {
   if (!response.ok) {
     throw new Error("Движок не отвечает. Запусти программу через start.sh");
   }
-  return (await response.json()) as Health;
+  const payload = (await response.json()) as Health;
+  if (!payload || payload.ok !== true) {
+    throw new Error("Движок не отвечает. Запусти программу через start.sh");
+  }
+  return payload;
 }
 
 export async function startJob(file: File, mode: ModeId): Promise<Job> {
