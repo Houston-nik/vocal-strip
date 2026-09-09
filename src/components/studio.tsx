@@ -90,6 +90,7 @@ export function Studio() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [playing, setPlaying] = useState<"original" | "instrumental" | "vocals" | null>(null);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,6 +197,23 @@ export function Studio() {
     }
   }
 
+  async function loadDemo() {
+    setDemoBusy(true);
+    setLocalError(null);
+    try {
+      const response = await fetch("/demo-pesnya.wav");
+      if (!response.ok) {
+        throw new Error("Демо-песня не скачалась. Возьми свой файл.");
+      }
+      const blob = await response.blob();
+      takeFile(new File([blob], "demo-pesnya.wav", { type: "audio/wav" }));
+    } catch (error) {
+      setLocalError(extractError(error));
+    } finally {
+      setDemoBusy(false);
+    }
+  }
+
   function reset() {
     setFile(null);
     setJob(null);
@@ -277,14 +295,18 @@ export function Studio() {
             <Upload data-icon="inline-start" />
             Выбрать файл
           </Button>
-          {file ? (
-            <p className="text-sm text-amber-100">
-              {file.name} · {fileSizeLabel(file.size)}
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">или перетащи мышкой</p>
-          )}
+          <Button type="button" size="lg" variant="secondary" disabled={demoBusy} onClick={() => void loadDemo()}>
+            <Sparkles data-icon="inline-start" />
+            Взять демо-песню
+          </Button>
         </div>
+        {file ? (
+          <p className="mt-4 text-sm text-amber-100">
+            {file.name} · {fileSizeLabel(file.size)}
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">или перетащи свой трек мышкой</p>
+        )}
       </section>
 
       <section className="grid gap-3 md:grid-cols-3">
