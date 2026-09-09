@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import threading
 import time
 import uuid
@@ -162,27 +163,14 @@ def _run_job(job: Job) -> None:
                 model_dir=MODEL_DIR,
                 on_progress=report,
             )
-            if instrumental_path.resolve() != (job.folder / "instrumental.wav").resolve():
-                write_target = job.folder / "instrumental.wav"
-                if instrumental_path.suffix.lower() == ".wav":
-                    instrumental_path.replace(write_target)
-                else:
-                    stereo, sr, _ = load_stereo(instrumental_path)
-                    write_wav(write_target, stereo, sr)
-            if vocals_path is not None:
-                target = job.folder / "vocals.wav"
-                if vocals_path.resolve() != target.resolve():
-                    if vocals_path.suffix.lower() == ".wav":
-                        vocals_path.replace(target)
-                    else:
-                        stereo, sr, _ = load_stereo(vocals_path)
-                        write_wav(target, stereo, sr)
-            else:
+            _place_stem(instrumental_path, job.folder / "instrumental.wav")
+            if vocals_path is not None and vocals_path.exists():
+                _place_stem(vocals_path, job.folder / "vocals.wav")
+            elif not (job.folder / "vocals.wav").exists():
                 stereo, sr, _ = load_stereo(source)
-                original = stereo
-                inst, sr2, _ = load_stereo(job.folder / "instrumental.wav")
-                min_len = min(original.shape[1], inst.shape[1])
-                vocals = original[:, :min_len] - inst[:, :min_len]
+                inst, _, _ = load_stereo(job.folder / "instrumental.wav")
+                min_len = min(stereo.shape[1], inst.shape[1])
+                vocals = stereo[:, :min_len] - inst[:, :min_len]
                 write_wav(job.folder / "vocals.wav", vocals, sr)
         else:
             report(12.0, "Раскладываю стерео на «центр» и «края»")
@@ -234,3 +222,14 @@ def start_worker() -> None:
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     thread = threading.Thread(target=_worker, name="minusovka-worker", daemon=True)
     thread.start()
+
+
+def _place_stem(source: Path, destination: Path) -> None:
+    if not source.exists():
+        raise AudioError("Нейросеть не сохранила файл. Попробуй ещё раз или быстрый черновик.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    resolved_source = source.resolve()
+    resolved_dest = destination.resolve()
+    if resolved_source == resolved_dest:
+        return
+    shutil.move(str(resolved_source), str(resolved_dest))

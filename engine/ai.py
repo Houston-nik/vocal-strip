@@ -66,6 +66,28 @@ def _build_separator(output_dir: Path, model_dir: Path):
     )
 
 
+def _point_output(separator, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = str(output_dir)
+    separator.output_dir = path
+    instance = getattr(separator, "model_instance", None)
+    if instance is not None:
+        instance.output_dir = path
+
+
+def _resolve_written(path: Path, output_dir: Path) -> Path:
+    candidates = [
+        path,
+        output_dir / path.name,
+        Path.cwd() / path.name,
+        Path("/tmp/minusovka-warmup") / path.name,
+    ]
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return output_dir / path.name
+
+
 def separate_with_ai(
     source: Path,
     output_dir: Path,
@@ -84,9 +106,7 @@ def separate_with_ai(
             global _separator, _loaded_model
             if _separator is None:
                 _separator = _build_separator(output_dir, model_dir)
-            else:
-                _separator.output_dir = str(output_dir)
-                output_dir.mkdir(parents=True, exist_ok=True)
+            _point_output(_separator, output_dir)
             if _loaded_model != mode.model_filename:
                 on_progress(10.0, f"Загружаю {mode.model_filename}")
                 _separator.load_model(model_filename=mode.model_filename)
@@ -99,10 +119,10 @@ def separate_with_ai(
             }
             written = _separator.separate(str(source), output_names)
 
-        files = [Path(item) for item in written]
+        files = [_resolve_written(Path(item), output_dir) for item in written]
         instrumental = _pick_stem(files, "instrumental", output_dir)
         vocals = _pick_stem(files, "vocals", output_dir, required=False)
-        if instrumental is None:
+        if instrumental is None or not instrumental.exists():
             raise RuntimeError("Модель не вернула минусовку. Попробуй другой режим.")
         on_progress(92.0, "Сохраняю чистую фонограмму")
         return instrumental, vocals
@@ -112,10 +132,11 @@ def separate_with_ai(
 
 def _pick_stem(files: list[Path], key: str, output_dir: Path, required: bool = True) -> Path | None:
     lowered = key.lower()
-    for item in files:
+    existing = [item for item in files if item.exists()]
+    for item in existing:
         if lowered in item.stem.lower():
             return item
-    matches = list(output_dir.glob(f"*{key}*"))
+    matches = sorted(output_dir.glob(f"*{key}*"))
     if matches:
         return matches[0]
     if required:
