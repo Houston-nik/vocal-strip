@@ -24,8 +24,14 @@ __pycache__/
 # production
 /build
 
-# app data and downloaded AI models
+# app data, job uploads, and downloaded AI models
 /data/
+
+# ML model weights (audio-separator downloads into data/models; never commit)
+*.onnx
+*.pt
+*.pth
+*.ckpt
 
 # misc
 .DS_Store
